@@ -1,0 +1,36 @@
+{
+    "configurations": [
+        {
+            "name": "TivaC",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/include",
+                "/home/pepe/projects/embedded/tivac/tivaware",
+                "/home/pepe/projects/embedded/tivac/tivaware/inc",
+                "/home/pepe/projects/embedded/tivac/tivaware/driverlib",
+                "/home/pepe/projects/embedded/tivac/tivaware/utils"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "${workspaceFolder}/include",
+                    "/home/pepe/projects/embedded/tivac/tivaware",
+                    "/home/pepe/projects/embedded/tivac/tivaware/inc",
+                    "/home/pepe/projects/embedded/tivac/tivaware/driverlib",
+                    "/home/pepe/projects/embedded/tivac/tivaware/utils"
+                ]
+            },
+            "defines": [
+                "PART_TM4C123GH6PM",
+                "TARGET_IS_TM4C123_RA1",
+                "gcc"
+            ],
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/home/pepe/gcc-arm-none-eabi-9-2019-q4-major/bin/arm-none-eabi-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "compilerArgs": []
+        }
+    ],
+    "version": 4
+}
