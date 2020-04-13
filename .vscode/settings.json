@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "cstdbool": "cpp"
+    },
+    "cmake.configureOnOpen": false
+}

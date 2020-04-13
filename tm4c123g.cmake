@@ -11,14 +11,15 @@ set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PREFIX}-as)
 set(CMAKE_AR ${TOOLCHAIN_PREFIX}-ar)
 set(CMAKE_OBJCOPY ${TOOLCHAIN_PREFIX}-objcopy)
 set(CMAKE_OBJDUMP ${TOOLCHAIN_PREFIX}-objdump)
+set(CMAKE_SIZE_UTIL ${TOOLCHAIN_PREFIX}-size CACHE INTERNAL "size tool")
 
 enable_language(ASM)
 
 set(CPU "-mcpu=cortex-m4")
 set(FPU "-mfpu=fpv4-sp-d16 -mfloat-abi=hard")
 set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mthumb ${CPU}  ${FPU} -MD")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mthumb ${CPU} ${FPU} -std=gnu99 -Os -ffunction-sections -fdata-sections -MD -Wall -pedantic")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthumb ${CPU} ${FPU}  -Os -ffunction-sections -fdata-sections -MD -Wall -pedantic -fno-exceptions -fno-rtti")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mthumb ${CPU} ${FPU} -std=gnu99 -O0 -ffunction-sections -fdata-sections -MD -Wall -pedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthumb ${CPU} ${FPU}  -O0 -ffunction-sections -fdata-sections -MD -Wall -pedantic -fno-exceptions -fno-rtti")
 
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
@@ -34,3 +35,10 @@ ADD_CUSTOM_TARGET("flash" DEPENDS ${CMAKE_PROJECT_NAME}.axf
   COMMAND ${CMAKE_OBJCOPY} -O binary ${CMAKE_PROJECT_NAME}.axf ${CMAKE_PROJECT_NAME}.bin 
   COMMAND ${FLASH_EXECUTABLE} ${CMAKE_PROJECT_NAME}.bin
 )
+
+function(firmware_size target)
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_SIZE_UTIL} -B
+        "${PROJECT_SOURCE_DIR}/build/${target}"
+    )
+endfunction()
