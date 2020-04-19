@@ -7,7 +7,7 @@
                 "${workspaceFolder}/include",
                 "/home/pepe/projects/embedded/tivac/tivaware",
                 "/home/pepe/projects/embedded/tivac/tivaware/inc",
-                "/home/pepe/projects/embedded/tivac/tivaware/driverlib",
+                "/home/pepe/projects/embedded/tivac/tivaware/driverlib/*",
                 "/home/pepe/projects/embedded/tivac/tivaware/utils"
             ],
             "browse": {
@@ -16,7 +16,7 @@
                     "${workspaceFolder}/include",
                     "/home/pepe/projects/embedded/tivac/tivaware",
                     "/home/pepe/projects/embedded/tivac/tivaware/inc",
-                    "/home/pepe/projects/embedded/tivac/tivaware/driverlib",
+                    "/home/pepe/projects/embedded/tivac/tivaware/driverlib/*",
                     "/home/pepe/projects/embedded/tivac/tivaware/utils"
                 ]
             },

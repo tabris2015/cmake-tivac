@@ -10,7 +10,6 @@
 #include <inc/tm4c123gh6pm.h>
 #include <inc/hw_gpio.h>
 #include <inc/hw_types.h>
-// #include <inc/hw_ints.h>
 #include <inc/hw_memmap.h>
 
 #include <driverlib/sysctl.h>
@@ -18,7 +17,10 @@
 #include <driverlib/gpio.h>
 #include <driverlib/pwm.h>
 #include <driverlib/qei.h>
+#include <driverlib/timer.h>
 #include <driverlib/interrupt.h>
+
+
 // #include "pinout.h"
 
 // rgb led defines
@@ -102,6 +104,8 @@ volatile int qei_pos;
 volatile uint32_t led_pwm = 0;
 volatile uint32_t red_pwm = 0;
 volatile uint32_t green_pwm = 0;
+
+volatile uint8_t state = 0;
 // #define delay(x)      SysCtlDelay(SysCtlClockGet() / 3 * x);
 
 void delayMS(int ms)
@@ -122,6 +126,7 @@ void InitRightMotor();
 void InitEncoder1();
 void InitEncoder2();
 void InitSystick();
+void InitTimer0();
 
 // prototypes for motors api
 void lmotor(int vel);
@@ -131,6 +136,9 @@ void rmotor(int vel);
 
 // led api
 void setLED(uint32_t red, uint32_t green);
+
+// timer callback
+void timeout();
 
 //*****************************************************************************
 // Blink the on-board LED.
@@ -144,11 +152,11 @@ int main(void)
     
     while (1)
     {
-        red_pwm = (QEIPositionGet(ENC1_BASE) * M_PWM_PERIOD) / ENC_PPR;
-        green_pwm = (QEIPositionGet(ENC2_BASE) * M_PWM_PERIOD) / ENC_PPR;
-        setLED(red_pwm, green_pwm);
-        lmotor(red_pwm);
-        rmotor(red_pwm);
+        // red_pwm = (QEIPositionGet(ENC1_BASE) * M_PWM_PERIOD) / ENC_PPR;
+        // green_pwm = (QEIPositionGet(ENC2_BASE) * M_PWM_PERIOD) / ENC_PPR;
+        // setLED(red_pwm, green_pwm);
+        // lmotor(red_pwm);
+        // rmotor(red_pwm);
         delayMS(5);
     }
 }
@@ -162,6 +170,7 @@ void InitBoard()
     InitEncoder2();
     InitLeftMotor();
     InitRightMotor();
+    InitTimer0();
     IntMasterEnable();
 }
 
@@ -306,6 +315,24 @@ void InitEncoder2()
     // motor(0);
 
 }
+
+void InitTimer0()
+{
+    // enable clock for timer 0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
+    // configure as periodic
+    TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
+    // load set value
+    TimerLoadSet(TIMER0_BASE, TIMER_A, 20000000);
+    // enable timer interrupt
+    TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+    // set the isr
+    TimerIntRegister(TIMER0_BASE, TIMER_A, timeout);
+    // enable interrupt in NVIC
+    IntEnable(INT_TIMER0A);
+    // enable timer
+    TimerEnable(TIMER0_BASE, TIMER_A);
+}
 //
 void setLED(uint32_t red, uint32_t green)
 {
@@ -336,4 +363,16 @@ void rmotor(int vel)
     if (fin_value == 0)
         GPIOPinWrite(M2_PORT, M2_IN1_PIN | M2_IN2_PIN, 0);
     PWMPulseWidthSet(M2_PWM_BASE, M2_PWM_OUT, fin_value);
+}
+
+void timeout()
+{
+    // clear interrupt
+    TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+    if(state)
+        setLED(0,0);
+    else
+        setLED(0,500);
+
+    state = !state;
 }

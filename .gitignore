@@ -53,3 +53,7 @@ dkms.conf
 
 
 build
+
+GPATH
+GRTAGS
+GTAGS
