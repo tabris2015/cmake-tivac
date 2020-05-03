@@ -1,6 +1,13 @@
 {
     "files.associations": {
-        "cstdbool": "cpp"
+        "cstdbool": "cpp",
+        "qs-rgb.h": "c",
+        "rgb.h": "c",
+        "cmdline.h": "c",
+        "uartstdio.h": "c",
+        "cstdlib": "cpp",
+        "systick.h": "c",
+        "ustdlib.h": "c"
     },
     "cmake.configureOnOpen": false
 }

@@ -4,9 +4,10 @@
 //
 //*****************************************************************************
 // #define PART_TM4C1230C3PM
+#define UART_BUFFERED
 #include <stdbool.h>
 #include <stdint.h>
-#include <cstdlib> // abs function
+#include <stdlib.h> // abs function
 #include <inc/tm4c123gh6pm.h>
 #include <inc/hw_gpio.h>
 #include <inc/hw_types.h>
@@ -14,103 +15,70 @@
 
 #include <driverlib/sysctl.h>
 #include <driverlib/pin_map.h>
+#include <driverlib/interrupt.h>
 #include <driverlib/gpio.h>
 #include <driverlib/pwm.h>
 #include <driverlib/qei.h>
 #include <driverlib/timer.h>
-#include <driverlib/interrupt.h>
+#include <driverlib/systick.h>
+#include <driverlib/uart.h>
+#include <driverlib/adc.h>
 
+#include "utils/uartstdio.h"
+#include "utils/ustdlib.h"
+// #include "utils/cmdline.h"
 
-// #include "pinout.h"
+#include "board_defines.h"
 
-// rgb led defines
-#define LED_PORT GPIO_PORTF_BASE
-#define LED_PWM_BASE PWM1_BASE
-#define LED_PWM_PERIPH SYSCTL_PERIPH_PWM1
-#define LED_PERIPH SYSCTL_PERIPH_GPIOF
+typedef struct robot_state_t
+{
+    float l_setpoint;
+    float r_setpoint;
+    uint32_t l_ticks;
+    uint32_t r_ticks;
+    float l_angle;
+    float r_angle;
+    float l_speed;
+    float r_speed;
+}robot_state_t;
 
-#define RED_LED_PINMUX GPIO_PF1_M1PWM5
-#define RED_LED_PIN GPIO_PIN_1
-#define RED_LED_GEN PWM_GEN_2
-#define RED_LED_OUT PWM_OUT_5
-#define RED_LED_OUT_BIT PWM_OUT_5_BIT
+// #include "serial_commands.h"
 
-#define GREEN_LED_PINMUX GPIO_PF3_M1PWM7
-#define GREEN_LED_PIN GPIO_PIN_3
-#define GREEN_LED_GEN PWM_GEN_3
-#define GREEN_LED_OUT PWM_OUT_7
-#define GREEN_LED_OUT_BIT PWM_OUT_7_BIT
-// #define RED_LED_PORT GPIO_PORTF_BASE
-
-#define M_PWM_PERIOD 999
-
-// M1 defines
-#define M1_PORT GPIO_PORTD_BASE
-// PWM
-#define M1_PWM_BASE PWM1_BASE
-#define M1_PWM_PERIPH SYSCTL_PERIPH_PWM1
-#define M1_PWM_PINMUX GPIO_PD0_M1PWM0
-#define M1_PWM_PIN GPIO_PIN_0
-#define M1_PWM_GEN PWM_GEN_0
-#define M1_PWM_OUT PWM_OUT_0
-#define M1_PWM_OUT_BIT PWM_OUT_0_BIT
-// GPIO
-#define M1_IN_PERIPH SYSCTL_PERIPH_GPIOD
-#define M1_IN1_PIN GPIO_PIN_1
-#define M1_IN2_PIN GPIO_PIN_2
-
-// M2 defines
-#define M2_PORT GPIO_PORTB_BASE
-// PWM
-#define M2_PWM_BASE PWM0_BASE
-#define M2_PWM_PERIPH SYSCTL_PERIPH_PWM0
-#define M2_PWM_PINMUX GPIO_PB4_M0PWM2
-#define M2_PWM_PIN GPIO_PIN_4
-#define M2_PWM_GEN PWM_GEN_1
-#define M2_PWM_OUT PWM_OUT_2
-#define M2_PWM_OUT_BIT PWM_OUT_2_BIT
-// GPIO
-#define M2_IN_PERIPH SYSCTL_PERIPH_GPIOB
-#define M2_IN1_PIN GPIO_PIN_0
-#define M2_IN2_PIN GPIO_PIN_1
-
-// Encoders defines
-#define ENC_PPR (380*4*7)
-// encoder 1
-#define ENC1_PERIPH SYSCTL_PERIPH_QEI1
-#define ENC1_PINS_PERIPH SYSCTL_PERIPH_GPIOC
-#define ENC1_BASE QEI1_BASE
-#define ENC1_GPIO_BASE GPIO_PORTC_BASE
-#define ENC1_A_PINMUX GPIO_PC5_PHA1
-#define ENC1_B_PINMUX GPIO_PC6_PHB1
-#define ENC1_A_PIN GPIO_PIN_5
-#define ENC1_B_PIN GPIO_PIN_6
-
-// encoder 2
-#define ENC2_PERIPH SYSCTL_PERIPH_QEI0
-#define ENC2_PINS_PERIPH SYSCTL_PERIPH_GPIOD
-#define ENC2_BASE QEI0_BASE
-#define ENC2_GPIO_BASE GPIO_PORTD_BASE
-#define ENC2_A_PINMUX GPIO_PD6_PHA0
-#define ENC2_B_PINMUX GPIO_PD7_PHB0
-#define ENC2_A_PIN GPIO_PIN_6
-#define ENC2_B_PIN GPIO_PIN_7
-
-// #include "pin.h"
+#define APP_INPUT_BUF_SIZE  64
+#define SYSTICK_PERIOD 79999
 
 // globals
+// for control loop
+volatile bool c_flag = false;
+// for timing
+volatile uint32_t millisecs = 0;
+
+// for motor control
 volatile int qei_pos;
 
+volatile int motor1_ticks = 0;
+
+// for leds
 volatile uint32_t led_pwm = 0;
 volatile uint32_t red_pwm = 0;
 volatile uint32_t green_pwm = 0;
 
 volatile uint8_t state = 0;
+
 // #define delay(x)      SysCtlDelay(SysCtlClockGet() / 3 * x);
 
+// for cmdline
+static char g_cInput[APP_INPUT_BUF_SIZE];
+
+
+// timing functions
 void delayMS(int ms)
 {
     SysCtlDelay((SysCtlClockGet() / (3 * 1000)) * ms);
+}
+void SystickCB()
+{
+    millisecs++;
 }
 // prototypes
 void InitCLock()
@@ -127,37 +95,104 @@ void InitEncoder1();
 void InitEncoder2();
 void InitSystick();
 void InitTimer0();
+void InitConsole();
+void InitTemp();
+
 
 // prototypes for motors api
 void lmotor(int vel);
 void rmotor(int vel);
 
 // prototypes for encoder
-
+uint32_t getLMotorTicks();
+uint32_t getLMotorVel();
+uint32_t getRMotorTicks();
+uint32_t getRMotorVel();
 // led api
 void setLED(uint32_t red, uint32_t green);
 
 // timer callback
-void timeout();
+void loopISR();
 
+// adc
+uint32_t readTempC();
+
+// serial command
+void serialCommand(char * buffer);
 //*****************************************************************************
 // Blink the on-board LED.
 //*****************************************************************************
 int main(void)
 {
     InitBoard();
-    delayMS(500);
+    delayMS(100);
     setLED(1, 1);
-    delayMS(500);
-    
+    delayMS(100);
+    uint8_t green_state = 0;
+    uint32_t last_green = millisecs;
+    uint32_t last_log = millisecs;
+    int32_t i32CommandStatus;
+    char buffer[10];
+    float v_setpoint = 0.0f;
+    int log_vel = 20;
+    bool log_flag = true;
+    lmotor(0);
+    rmotor(0);
+    robot_state_t robot_state;
+
     while (1)
     {
-        // red_pwm = (QEIPositionGet(ENC1_BASE) * M_PWM_PERIOD) / ENC_PPR;
-        // green_pwm = (QEIPositionGet(ENC2_BASE) * M_PWM_PERIOD) / ENC_PPR;
-        // setLED(red_pwm, green_pwm);
-        // lmotor(red_pwm);
-        // rmotor(red_pwm);
-        delayMS(5);
+        if(UARTPeek('\r') != -1)
+        {
+            char * p_end;
+            // new command received
+            UARTgets(g_cInput,sizeof(g_cInput));
+
+            // process command]
+            switch (g_cInput[0])
+            {
+            case 'q':
+                log_flag = false;
+                break;
+            case 'v':
+                log_flag = true;
+                break;
+            case 'w':
+                // read setpoints
+                robot_state.l_setpoint = ustrtof(g_cInput + 1, &p_end);
+                robot_state.r_setpoint = ustrtof(p_end, NULL);
+                break;
+
+            default:
+                break;
+            }
+        }
+        
+        if(c_flag)
+        {
+            // control loop calculations
+            c_flag = false;
+            // red_pwm = state ? 1 : 200;
+            // setLED(red_pwm, green_pwm);
+            // state = !state;
+            lmotor((int)robot_state.l_setpoint);
+            rmotor((int)robot_state.r_setpoint);
+        }
+        uint32_t current = millisecs;
+        if(current - last_green > 1000)
+        {
+            green_pwm = green_state ? 1 : 200;
+            setLED(red_pwm, green_pwm);
+            green_state = !green_state;
+
+            last_green = millisecs;
+        }
+        if((current - last_log >= DELTA_T_MS) && log_flag)
+        {
+            UARTprintf("%d %d %d; %d %d \n", millisecs, getLMotorTicks(), getRMotorTicks(), getLMotorVel(), getRMotorVel());
+            last_log = millisecs;
+        }
+
     }
 }
 
@@ -170,8 +205,13 @@ void InitBoard()
     InitEncoder2();
     InitLeftMotor();
     InitRightMotor();
+    InitConsole();
+    InitTemp();
     InitTimer0();
+    InitSystick();
     IntMasterEnable();
+    UARTprintf("initialization finished!\n");
+
 }
 
 void InitLED()
@@ -268,13 +308,14 @@ void InitEncoder1()
     // QEIIntDisable(ENC1_BASE, QEI_INTERROR | QEI_INTDIR | QEI_INTTIMER | QEI_INTINDEX);
 
     // configure
-    QEIConfigure(ENC1_BASE, QEI_CONFIG_CAPTURE_A_B | QEI_CONFIG_NO_RESET | QEI_CONFIG_QUADRATURE |QEI_CONFIG_NO_SWAP, ENC_PPR);
+    QEIConfigure(ENC1_BASE, QEI_CONFIG_CAPTURE_A_B | QEI_CONFIG_NO_RESET | QEI_CONFIG_QUADRATURE |QEI_CONFIG_SWAP, 0xffffffff);
+    QEIVelocityConfigure(ENC1_BASE, QEI_VELDIV_1, LOOP_TIMER_PERIOD); //
 
     // enable
     QEIEnable(ENC1_BASE);
-
+    QEIVelocityEnable(ENC1_BASE);
     // set position 
-    QEIPositionSet(ENC1_BASE, 1);
+    QEIPositionSet(ENC1_BASE, 0);
     
     // motor(0);
 
@@ -304,13 +345,14 @@ void InitEncoder2()
     // QEIIntDisable(ENC2_BASE, QEI_INTERROR | QEI_INTDIR | QEI_INTTIMER | QEI_INTINDEX);
 
     // configure
-    QEIConfigure(ENC2_BASE, QEI_CONFIG_CAPTURE_A_B | QEI_CONFIG_NO_RESET | QEI_CONFIG_QUADRATURE |QEI_CONFIG_NO_SWAP, ENC_PPR);
+    QEIConfigure(ENC2_BASE, QEI_CONFIG_CAPTURE_A_B | QEI_CONFIG_NO_RESET | QEI_CONFIG_QUADRATURE |QEI_CONFIG_NO_SWAP, 0xffffffff);
+    QEIVelocityConfigure(ENC2_BASE, QEI_VELDIV_1, LOOP_TIMER_PERIOD); //
 
     // enable
     QEIEnable(ENC2_BASE);
-
+    QEIVelocityEnable(ENC2_BASE);
     // set position 
-    QEIPositionSet(ENC2_BASE, 1);
+    QEIPositionSet(ENC2_BASE, 0);
     
     // motor(0);
 
@@ -323,15 +365,58 @@ void InitTimer0()
     // configure as periodic
     TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
     // load set value
-    TimerLoadSet(TIMER0_BASE, TIMER_A, 20000000);
+    TimerLoadSet(TIMER0_BASE, TIMER_A, LOOP_TIMER_PERIOD);
     // enable timer interrupt
     TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     // set the isr
-    TimerIntRegister(TIMER0_BASE, TIMER_A, timeout);
+    TimerIntRegister(TIMER0_BASE, TIMER_A, loopISR);
     // enable interrupt in NVIC
     IntEnable(INT_TIMER0A);
     // enable timer
     TimerEnable(TIMER0_BASE, TIMER_A);
+}
+
+void InitSystick()
+{
+    SysTickPeriodSet(SYSTICK_PERIOD);
+    SysTickIntRegister(SystickCB);
+    SysTickIntEnable();
+    SysTickEnable();
+}
+
+void InitConsole()
+{
+    // enable gpio periph
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+    // configure pinmux
+    GPIOPinConfigure(GPIO_PA0_U0RX);
+    GPIOPinConfigure(GPIO_PA1_U0TX);
+    // enable uart
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART0);
+    // use internal 16MHz oscilator
+    UARTClockSourceSet(UART0_BASE, UART_CLOCK_PIOSC);
+    // select alternate functions for pins
+    GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    // init uart for console I/O
+    UARTStdioConfig(0, 115200, 16000000);
+
+
+}
+
+void InitTemp()
+{
+    // enable peroph
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_ADC0))
+    {
+    }
+    // enable  samble seq with processor trigger
+    ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
+    // configure step 0 on seq 3, sample temp sensor and interrupt when is done.
+    ADCSequenceStepConfigure(ADC0_BASE, 3, 0, ADC_CTL_TS | ADC_CTL_IE | ADC_CTL_END);
+    // enable adc seq
+    ADCSequenceEnable(ADC0_BASE, 3);
+    ADCIntClear(ADC0_BASE, 3);
 }
 //
 void setLED(uint32_t red, uint32_t green)
@@ -365,14 +450,63 @@ void rmotor(int vel)
     PWMPulseWidthSet(M2_PWM_BASE, M2_PWM_OUT, fin_value);
 }
 
-void timeout()
+// enc 
+uint32_t getLMotorTicks()
+{
+    return QEIPositionGet(ENC1_BASE);
+}
+uint32_t getLMotorVel()
+{
+    return QEIVelocityGet(ENC1_BASE);
+}
+uint32_t getRMotorTicks()
+{
+    return QEIPositionGet(ENC2_BASE);
+}
+uint32_t getRMotorVel()
+{
+    return QEIVelocityGet(ENC2_BASE);
+}
+
+uint32_t readTempC()
+{
+    uint32_t adc_value;
+    // trigger conversion
+    ADCProcessorTrigger(ADC0_BASE, 3);
+    // wait for conversion to be completed
+    while(!ADCIntStatus(ADC0_BASE, 3, false)){}
+    // clear flag
+    ADCIntClear(ADC0_BASE, 3);
+    // read adc value
+    ADCSequenceDataGet(ADC0_BASE, 3, &adc_value);
+    // convert according to datasheet
+    uint32_t temp_C = ((1475 * 1023) - (2250 * adc_value)) / 10230;
+
+    return temp_C;
+}
+
+// ISR
+void loopISR()
 {
     // clear interrupt
     TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
-    if(state)
-        setLED(0,0);
-    else
-        setLED(0,500);
-
-    state = !state;
+    c_flag = true;
 }
+
+// Serial commands
+void serialCommand(char *buffer)
+{
+    switch (buffer[0])
+    {
+    case 'r':
+        // UARTprintf('r\n');
+        break;
+    case 'w':
+        // UARTprintf('w\n');
+        break;
+    
+    default:
+        break;
+    }
+}
+
