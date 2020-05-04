@@ -47,6 +47,7 @@ typedef struct robot_state_t
 #define SYSTICK_PERIOD 79999
 
 //* globals
+volatile uint32_t tPeriod = 65535;
 //* for control loop
 volatile bool c_flag = false;
 //* for timing
@@ -228,7 +229,12 @@ int main(void)
         }
         if((current - last_log >= DELTA_T_MS) && log_flag)
         {
-            UARTprintf("%d %d %d; %d %d \n", millisecs, getLMotorTicks(), getRMotorTicks(), getLMotorVel(), getRMotorVel());
+            UARTprintf("%d %d %d %d %d \n", 
+                                millisecs, 
+                                (int)(left_speed*1000), 
+                                (int)(right_speed*1000), 
+                                (int)(left_setpoint * 1000), 
+                                (int)(right_setpoint * 1000));
             last_log = millisecs;
         }
 
@@ -404,7 +410,7 @@ void InitTimer0()
     //* configure as periodic
     TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
     //* load set value
-    TimerLoadSet(TIMER0_BASE, TIMER_A, LOOP_TIMER_PERIOD);
+    TimerLoadSet(TIMER0_BASE, TIMER_A, 79999);
     //* enable timer interrupt
     TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     //* set the isr
@@ -438,8 +444,6 @@ void InitConsole()
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
     //* init uart for console I/O
     UARTStdioConfig(0, 115200, 16000000);
-
-
 }
 
 void InitTemp()

@@ -80,8 +80,8 @@
 #define ENC2_B_PIN GPIO_PIN_7
 
 // timer period
-#define CPU_FREQ 80000000
-#define SAMPLE_RATE_HZ 80     // sample rate in ms
+#define CPU_FREQ 80000000UL
+#define SAMPLE_RATE_HZ 100UL     // sample rate in ms
 #define DELTA_T (1.0 / SAMPLE_RATE_HZ)
 #define DELTA_T_MS (1000 / SAMPLE_RATE_HZ)
 
