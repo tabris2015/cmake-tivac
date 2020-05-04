@@ -53,8 +53,12 @@
 #define M2_IN1_PIN GPIO_PIN_0
 #define M2_IN2_PIN GPIO_PIN_1
 
-// Encoders defines
-#define ENC_PPR (380*4*7)
+// Robot defines
+// #define ENC_PPR (380*4*7)
+#define ENC_PPR 1496
+#define WHEEL_RADIUS (0.065 / 2)
+#define BASE_L 0.17
+
 // encoder 1
 #define ENC1_PERIPH SYSCTL_PERIPH_QEI1
 #define ENC1_PINS_PERIPH SYSCTL_PERIPH_GPIOC
@@ -80,6 +84,9 @@
 #define SAMPLE_RATE_HZ 80     // sample rate in ms
 #define DELTA_T (1.0 / SAMPLE_RATE_HZ)
 #define DELTA_T_MS (1000 / SAMPLE_RATE_HZ)
+
+#define MAX_PWM 1000.0
+#define MIN_PWM -1000.0
 
 
 #define LOOP_TIMER_PERIOD ((CPU_FREQ/SAMPLE_RATE_HZ)-1)

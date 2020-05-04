@@ -14,6 +14,7 @@ include_directories(${TIVA_WARE_PATH} ${TIVA_WARE_PATH}/utils)
 
 add_executable(${CMAKE_PROJECT_NAME}.axf startup_gcc.c 
                 src/main.c
+                src/pid.c
                 ${TIVA_WARE_PATH}/utils/uartstdio.c 
                 ${TIVA_WARE_PATH}/utils/ustdlib.c)
 
